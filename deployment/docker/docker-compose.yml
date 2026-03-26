@@ -55,3 +55,4 @@ services:
       
 volumes:
   postgres_data:
+  nats_data:  # 👈 define it here
