@@ -26,8 +26,8 @@ services:
     container_name: scrumlr-frontend
     environment:
       SCRUMLR_LISTEN_PORT: 8080
-      SCRUMLR_SERVER_URL: http://localhost:8081
-      SCRUMLR_WEBSOCKET_URL: ws://localhost:8081
+      SCRUMLR_SERVER_URL: https://p1-scrumblr.knhwmj.easypanel.host
+      SCRUMLR_WEBSOCKET_URL: wss://p1-scrumblr.knhwmj.easypanel.host
     depends_on:
       - scrumlr-backend
     ports:
