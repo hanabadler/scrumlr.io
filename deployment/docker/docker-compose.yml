@@ -48,7 +48,10 @@ services:
 
   nats:
     restart: always
-    image: nats:2.10
-
+    image: "nats:${NATS_VERSION:-2.10}"
+    command: "-js"
+    volumes:
+      - nats_data:/data
+      
 volumes:
   postgres_data:
