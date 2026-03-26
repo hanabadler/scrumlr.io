@@ -1,58 +1,77 @@
+version: "3.9"
+
 services:
+  # ---------- Backend ----------
   scrumlr-backend:
     restart: always
-    image: ghcr.io/inovex/scrumlr.io/scrumlr-server:5.0.0
+    image: "ghcr.io/inovex/scrumlr.io/scrumlr-server:${SCRUMLR_BACKEND_VERSION:-5.0.0}"
+    container_name: scrumlr-backend
     command:
       - "-disable-check-origin"
     environment:
-      SCRUMLR_LOG_LEVEL: INFO
-      SCRUMLR_SERVER_PORT: 8080
-      SCRUMLR_INSECURE: "false"
-      SCRUMLR_BASE_PATH: ""
-
-      SCRUMLR_PRIVATE_KEY: "change_me"
-
-      SCRUMLR_SERVER_DATABASE_URL: postgres://scrumlr:scrumlr123@postgres:5432/scrumlr?sslmode=disable
-      SCRUMLR_SERVER_NATS_URL: nats://nats:4222
-
-      SESSION_SECRET: "supersecret"
-
-    ports:
-      - "8082:8080"   # 👈 expose backend
-
+      SCRUMLR_LOG_LEVEL: "${SCRUMLR_LOG_LEVEL:-INFO}"
+      SCRUMLR_SERVER_PORT: "${SCRUMLR_SERVER_PORT:-8080}"
+      SCRUMLR_BASE_PATH: "${SCRUMLR_BASE_PATH:-/api}"   # ✅ must start with /
+      SCRUMLR_INSECURE: "${SCRUMLR_INSECURE:-false}"
+      SCRUMLR_PRIVATE_KEY: "${SCRUMLR_PRIVATE_KEY:-change_me}"
+      SCRUMLR_SERVER_DATABASE_URL: "postgres://${POSTGRES_USER:-scrumlr}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-scrumlr}?sslmode=disable"
+      SCRUMLR_SERVER_NATS_URL: "${SCRUMLR_SERVER_NATS_URL:-nats://nats:4222}"
+      SESSION_SECRET: "${SESSION_SECRET:-supersecret}"
     depends_on:
-      - postgres
-      - nats
+      postgres:
+        condition: service_healthy
+      nats:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "/healthcheck"]
+      start_period: 10s
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
+  # ---------- Frontend ----------
   scrumlr-frontend:
     restart: always
-    image: ghcr.io/inovex/scrumlr.io/scrumlr-frontend:5.0.0
+    image: "ghcr.io/inovex/scrumlr.io/scrumlr-frontend:${SCRUMLR_FRONTEND_VERSION:-5.0.0}"
+    container_name: scrumlr-frontend
     environment:
-      SCRUMLR_LISTEN_PORT: 8080
-      SCRUMLR_SERVER_URL: https://api-scrumblr.knhwmj.easypanel.host
-      SCRUMLR_WEBSOCKET_URL: wss://api-scrumblr.knhwmj.easypanel.host
+      SCRUMLR_LISTEN_PORT: "${SCRUMLR_LISTEN_PORT:-8080}"
+      SCRUMLR_SERVER_URL: "${SCRUMLR_SERVER_URL:-/api}"
+      SCRUMLR_WEBSOCKET_URL: "${SCRUMLR_WEBSOCKET_URL:-ws://localhost:8080/api}"
+      SCRUMLR_SHOW_LEGAL_DOCUMENTS: "${SCRUMLR_SHOW_LEGAL_DOCUMENTS:-true}"
     depends_on:
-      - scrumlr-backend
+      scrumlr-backend:
+        condition: service_healthy
     ports:
-      - "8081:8080"
+      - "${FRONTEND_PORT:-8081}:8080"  # Map to a different port since EasyPanel uses 80/443
 
+  # ---------- Postgres ----------
   postgres:
     restart: always
-    image: postgres:15
+    image: "postgres:${POSTGRES_VERSION:-15}"
+    container_name: postgres
     environment:
-      POSTGRES_DB: scrumlr
-      POSTGRES_USER: scrumlr
-      POSTGRES_PASSWORD: scrumlr123
+      POSTGRES_DB: "${POSTGRES_DB:-scrumlr}"
+      POSTGRES_USER: "${POSTGRES_USER:-scrumlr}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-scrumlr123}"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-scrumlr} -d ${POSTGRES_DB:-scrumlr}"]
+      start_period: 10s
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
+  # ---------- NATS with JetStream ----------
   nats:
     restart: always
     image: "nats:${NATS_VERSION:-2.10}"
+    container_name: nats
     command: "-js"
     volumes:
       - nats_data:/data
-      
+
 volumes:
   postgres_data:
-  nats_data:  # 👈 define it here
+  nats_data:
